@@ -10,10 +10,10 @@
 
 		<!-- Tela de login -->
 		<div id="loginScreen" style="display: flex; flex-direction: column; gap: 8px; max-width: 300px; margin: 40px auto;">
-			<form onsubmit="handleLogin(event)">
+			<form>
 				<input id="loginUser" type="email" placeholder="Email" required />
 				<input id="loginPassword" type="password" placeholder="Senha" required />
-				<button type="submit">Entrar</button>
+				<button type="submit" disabled>Entrar</button>
 			</form>
 		</div>
 
@@ -164,17 +164,7 @@
 					updateCartUI();
 
 				// chama quando o formulário de login for submetido
-			window.handleLogin = async function(event) {
-				event.preventDefault();
-				const email = document.getElementById('loginUser').value;
-				const password = document.getElementById('loginPassword').value;
-				try {
-					await signInWithEmailAndPassword(auth, email, password);
-					// se der certo, onAuthStateChanged (abaixo) vai atualizar a UI
-				} catch (err) {
-					alert('Erro ao logar: ' + err.message);
-				}
-			}
+
 
 			// logout
 			window.logout = async function() {
