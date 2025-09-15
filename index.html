@@ -1,188 +1,414 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Meu Site com Firebase</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Papel e Arte - PDV na Nuvem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SDKs do Firebase v9 -->
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .product-card:hover { transform: translateY(-2px); transition: all 0.2s ease; }
+        .low-stock-alert { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    </style>
 </head>
-<body>
-		<!-- Conteúdo do seu site aqui -->
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav id="mainNav" class="bg-white shadow-md border-b-4 border-blue-500 hidden">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center py-3">
+                <div class="flex items-center space-x-4">
+                    <div id="headerLogo" class="bg-blue-500 text-white p-2 rounded-lg flex items-center justify-center w-12 h-12">
+                        <!-- Logo will be loaded here -->
+                    </div>
+                    <h1 id="headerTitle" class="text-xl font-bold text-gray-800"></h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm text-gray-600">Loja:</span>
+                        <select id="storeSelector" onchange="changeStore()" class="px-3 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"></select>
+                    </div>
+                    <span class="text-sm text-gray-600">Usuário: <span id="currentUser" class="font-semibold"></span></span>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                        Sair
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-		<!-- Tela de login -->
-		<div id="loginScreen" style="display: flex; flex-direction: column; gap: 8px; max-width: 300px; margin: 40px auto;">
-			<form>
-				<input id="loginUser" type="email" placeholder="Email" required />
-				<input id="loginPassword" type="password" placeholder="Senha" required />
-				<button type="submit" disabled>Entrar</button>
-			</form>
-		</div>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-96 fade-in">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Login - Sistema Papel e Arte</h2>
+            </div>
+            <form onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="loginEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Senha</label>
+                    <input type="password" id="loginPassword" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    Entrar
+                </button>
+            </form>
+        </div>
+    </div>
 
-			<!-- Usuário logado -->
-			<div style="text-align:center; margin-top:20px;">
-				Usuário atual: <span id="currentUser">—</span>
-				<button onclick="logout()">Sair</button>
-			</div>
+    <!-- Main Content -->
+    <main id="mainContent" class="max-w-7xl mx-auto px-4 py-6 hidden">
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="flex border-b">
+                <button onclick="showTab('pos')" class="tab-btn px-6 py-3 font-medium" data-tab="pos">🛒 PDV</button>
+                <button onclick="showTab('products')" class="tab-btn px-6 py-3 font-medium" data-tab="products">📦 Produtos</button>
+                <button onclick="showTab('inventory')" class="tab-btn px-6 py-3 font-medium" data-tab="inventory">📊 Estoque</button>
+                <button onclick="showTab('employees')" class="tab-btn px-6 py-3 font-medium" data-tab="employees">👥 Funcionários</button>
+                <button onclick="showTab('reports')" class="tab-btn px-6 py-3 font-medium" data-tab="reports">📈 Relatórios</button>
+                <button onclick="showTab('settings')" class="tab-btn px-6 py-3 font-medium" data-tab="settings">⚙️ Configurações</button>
+            </div>
+        </div>
 
-			<!-- Grid de produtos -->
-				<div id="productsGrid" style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 32px 0;"></div>
+        <!-- POS Tab -->
+        <section id="posTab" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">Produtos</h2>
+                        <input type="text" id="productSearch" placeholder="Buscar..." class="px-3 py-2 border rounded-lg w-1/2" onkeyup="renderProducts()">
+                    </div>
+                    <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-h-[65vh] overflow-y-auto p-2"></div>
+                </div>
+                <div class="lg:col-span-1 bg-white rounded-lg shadow-md p-6 sticky top-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Carrinho</h3>
+                    <div id="cartItems" class="space-y-2 mb-4 max-h-64 overflow-y-auto"></div>
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="font-medium">Total:</span>
+                            <span id="cartTotal" class="text-2xl font-bold text-green-600">R$ 0,00</span>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-1">Pagamento:</label>
+                            <select id="paymentMethod" class="w-full px-3 py-2 border rounded-lg">
+                                <option value="Dinheiro">💵 Dinheiro</option>
+                                <option value="PIX">📱 PIX</option>
+                                <option value="Crédito">💳 Crédito</option>
+                                <option value="Débito">💳 Débito</option>
+                            </select>
+                        </div>
+                        <button id="finalizeSaleBtn" onclick="finalizeSale()" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg disabled:bg-gray-400" disabled>Finalizar Venda</button>
+                    </div>
+                </div>
+            </section>
+        </div>
 
-				<!-- Carrinho e botão de finalizar venda -->
-				<div id="cartSection" style="max-width:400px; margin:32px auto; padding:16px; border:1px solid #ccc; border-radius:8px; background:#f9f9f9;">
-					<h3>Carrinho</h3>
-					<ul id="cartList"></ul>
-					<div>Total: R$ <span id="cartTotal">0.00</span></div>
-					<button id="finalizeSaleBtn">Finalizar Venda</button>
-				</div>
+        <!-- Products Tab -->
+        <section id="productsTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">Gerenciar Produtos</h2>
+                    <button onclick="showProductForm()" class="bg-blue-500 text-white px-4 py-2 rounded-lg">➕ Novo Produto</button>
+                </div>
+                <div class="overflow-x-auto"><table class="w-full"><thead><tr class="bg-gray-50"><th class="p-2 text-left">Nome</th><th class="p-2 text-left">Preço</th><th class="p-2 text-left">Estoque</th><th class="p-2 text-left">Ações</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+            </div>
+        </section>
 
-	<!-- coloque isto perto do final do <body>, antes dos seus scripts que usam Firebase -->
-		<script type="module">
-			// IMPORTS via CDN (exemplo com Firebase v9 modular)
-			import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-			import { getFirestore, collection, addDoc, onSnapshot, doc, runTransaction, query, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-			import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+        <!-- Inventory Tab -->
+        <section id="inventoryTab" class="tab-content hidden">
+             <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Alertas de Estoque Baixo</h2>
+                <div id="lowStockAlerts" class="space-y-2"></div>
+            </div>
+        </section>
 
-			// --- Substitua pelos valores que o console do Firebase te deu ---
-			const firebaseConfig = {
-				apiKey: "SUA_API_KEY",
-				authDomain: "SEU_PROJETO.firebaseapp.com",
-				projectId: "SEU_PROJETO",
-				// ...outros campos
-			};
+        <!-- Employees Tab -->
+        <section id="employeesTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">Gerenciar Funcionários</h2>
+                <div class="overflow-x-auto"><table class="w-full"><thead><tr class="bg-gray-50"><th class="p-2 text-left">Nome</th><th class="p-2 text-left">Cargo</th><th class="p-2 text-left">Email</th><th class="p-2 text-left">Loja</th></tr></thead><tbody id="employeesTable"></tbody></table></div>
+            </div>
+        </section>
 
-			// Inicializa Firebase
-			const app = initializeApp(firebaseConfig);
-			const db = getFirestore(app);
-			const auth = getAuth(app);
+        <!-- Reports Tab -->
+        <section id="reportsTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Histórico de Vendas</h2>
+                <div class="overflow-x-auto max-h-[70vh]"><table class="w-full"><thead><tr class="bg-gray-50"><th class="p-2 text-left">Data</th><th class="p-2 text-left">Itens</th><th class="p-2 text-left">Total</th><th class="p-2 text-left">Pagamento</th><th class="p-2 text-left">Funcionário</th></tr></thead><tbody id="salesHistory"></tbody></table></div>
+            </div>
+        </section>
+        
+        <!-- Settings Tab -->
+        <section id="settingsTab" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">Informações da Empresa</h2>
+                     <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Nome da Empresa</label>
+                            <input type="text" id="companyName" class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+                        <div class="flex items-center space-x-4">
+                           <div id="logoPreview" class="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden"></div>
+                           <input type="file" id="logoUpload" accept="image/*" class="hidden" onchange="handleLogoUpload(event)">
+                           <button onclick="document.getElementById('logoUpload').click()" class="bg-blue-500 text-white px-4 py-2 rounded-lg">Trocar Logo</button>
+                        </div>
+                        <button onclick="saveSystemSettings()" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg">Salvar Configurações</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Gerenciar Lojas</h2>
+                    <button onclick="showStoreForm()" class="bg-blue-500 text-white px-4 py-2 rounded-lg mb-4">➕ Nova Loja</button>
+                    <div id="storesList" class="space-y-4"></div>
+                </div>
+            </div>
+        </section>
+    </main>
 
-			// Exporte/cole aqui as funções (login, logout, gravar venda etc) que detalho abaixo.
-			window._fb = { db, auth }; // (opcional) deixar disponível globalmente para debug
+    <!-- Modals -->
+    <div id="productModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-96 fade-in"><h3 class="text-lg font-bold mb-4" id="productModalTitle"></h3><form onsubmit="saveProduct(event)"><input type="hidden" id="productId"><div class="space-y-4"><div><label class="block text-sm">Nome</label><input type="text" id="productName" class="w-full p-2 border rounded" required></div><div><label class="block text-sm">Preço</label><input type="number" id="productPrice" step="0.01" class="w-full p-2 border rounded" required></div><div><label class="block text-sm">Estoque</label><input type="number" id="productStock" class="w-full p-2 border rounded" required></div><div><label class="block text-sm">Estoque Mínimo</label><input type="number" id="productMinStock" class="w-full p-2 border rounded" value="5"></div></div><div class="flex space-x-2 mt-6"><button type="submit" class="flex-1 bg-blue-500 text-white py-2 rounded">Salvar</button><button type="button" onclick="hideProductForm()" class="flex-1 bg-gray-500 text-white py-2 rounded">Cancelar</button></div></form></div>
+    </div>
+    <div id="storeModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-96 fade-in"><h3 class="text-lg font-bold mb-4" id="storeModalTitle"></h3><form onsubmit="saveStore(event)"><input type="hidden" id="storeId"><div class="space-y-4"><div><label class="block text-sm">Nome da Loja</label><input type="text" id="storeNameInput" class="w-full p-2 border rounded" required></div></div><div class="flex space-x-2 mt-6"><button type="submit" class="flex-1 bg-blue-500 text-white py-2 rounded">Salvar</button><button type="button" onclick="hideStoreForm()" class="flex-1 bg-gray-500 text-white py-2 rounded">Cancelar</button></div></form></div>
+    </div>
 
-				// Função para renderizar produtos
-				function renderProducts(products) {
-					const grid = document.getElementById('productsGrid');
-					grid.innerHTML = '';
-					products.forEach(p => {
-						// criar o card do produto usando p.id e p.name, p.price, p.stock
-						const div = document.createElement('div');
-						div.className = 'product-card';
-						div.style = 'border:1px solid #ccc; border-radius:8px; min-width:180px; background:#fafafa;';
-						div.innerHTML = `
-							<div class="p-3">
-								<h4>${p.name}</h4>
-								<p>R$ ${p.price.toFixed(2)}</p>
-								<p>Estoque: ${p.stock}</p>
-								<button onclick="addToCart('${p.id}', ${p.price}, '${p.name}')">Adicionar</button>
-							</div>
-						`;
-						grid.appendChild(div);
-					});
-				}
+    <!-- Notification -->
+    <div id="notification" class="fixed top-5 right-5 p-4 rounded-lg shadow-lg z-50 hidden text-white"></div>
 
-				// escuta em tempo real os produtos
-				import { query, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-				const productsCol = collection(db, 'products');
-				const q = query(productsCol, orderBy('name'));
-				onSnapshot(q, snapshot => {
-					const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-					renderProducts(items);
-				});
+    <script type="module">
+        // #####################################################################
+        // #####       C O N F I G U R A Ç Ã O   D O   F I R E B A S E       #####
+        // #####################################################################
+        
+        // INSIRA A CONFIGURAÇÃO DO SEU FIREBASE AQUI
+        const firebaseConfig = {
+            apiKey: "SUA_API_KEY",
+            authDomain: "SEU_AUTH_DOMAIN",
+            projectId: "SEU_PROJECT_ID",
+            storageBucket: "SEU_STORAGE_BUCKET",
+            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
+            appId: "SUA_APP_ID"
+        };
+        
+        // #####################################################################
+        // #####           F I M   D A   C O N F I G U R A Ç Ã O           #####
+        // #####################################################################
 
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, onSnapshot, collection, query, where, orderBy, addDoc, setDoc, deleteDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
-					// Carrinho simples em memória
-					let cart = [];
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
 
-					function updateCartUI() {
-						const cartList = document.getElementById('cartList');
-						const cartTotal = document.getElementById('cartTotal');
-						cartList.innerHTML = '';
-						let total = 0;
-						cart.forEach(item => {
-							const li = document.createElement('li');
-							li.textContent = `${item.name} x${item.quantity} - R$ ${(item.price * item.quantity).toFixed(2)}`;
-							cartList.appendChild(li);
-							total += item.price * item.quantity;
-						});
-						cartTotal.textContent = total.toFixed(2);
-					}
+        // Global State
+        let currentUserData = null;
+        let currentStoreId = null;
+        let localProducts = [];
+        let localStores = [];
+        let cart = [];
+        let unsubscribes = [];
 
-					window.addToCart = function(id, price, name) {
-						const idx = cart.findIndex(i => i.id === id);
-						if (idx >= 0) {
-							cart[idx].quantity += 1;
-						} else {
-							cart.push({ id, name, price, quantity: 1 });
-						}
-						updateCartUI();
-					};
+        // --- AUTH ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                bootstrap(user.uid);
+            } else {
+                cleanup();
+            }
+        });
 
-					// Função para finalizar venda
-					import { addDoc, doc, runTransaction } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-					import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+        async function bootstrap(uid) {
+            const userDoc = await getDoc(doc(db, "employees", uid));
+            if (userDoc.exists()) {
+                currentUserData = { id: userDoc.id, ...userDoc.data() };
+                currentStoreId = currentUserData.storeId;
+                document.getElementById('currentUser').textContent = currentUserData.name;
+                showUI();
+                setupDataListeners();
+            } else {
+                showNotification('Funcionário não encontrado. Contate o admin.', 'error');
+                logout();
+            }
+        }
 
-					async function finalizeSale(cartItems, total) {
-						const user = auth.currentUser;
-						if (!user) { alert('Faça login antes de finalizar a venda'); return; }
+        function cleanup() {
+            currentUserData = null;
+            currentStoreId = null;
+            cart = [];
+            unsubscribes.forEach(unsub => unsub());
+            unsubscribes = [];
+            hideUI();
+        }
+        
+        window.handleLogin = (event) => {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(err => showNotification(`Erro no login: ${err.code}`, 'error'));
+        }
 
-						try {
-							// 1) cria o documento de venda
-							await addDoc(collection(db, 'sales'), {
-								userId: user.uid,
-								items: cartItems, // array {id, name, price, quantity}
-								total,
-								createdAt: new Date()
-							});
+        window.logout = () => signOut(auth);
 
-							// 2) atualiza o estoque com transação para cada produto
-							for (const item of cartItems) {
-								const productRef = doc(db, 'products', item.id);
-								await runTransaction(db, async (transaction) => {
-									const prodSnap = await transaction.get(productRef);
-									if (!prodSnap.exists()) throw new Error('Produto não encontrado: ' + item.name);
-									const currentStock = prodSnap.data().stock || 0;
-									const newStock = currentStock - item.quantity;
-									if (newStock < 0) throw new Error('Estoque insuficiente para ' + item.name);
-									transaction.update(productRef, { stock: newStock });
-								});
-							}
+        // --- UI VISIBILITY ---
+        function showUI() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainNav').classList.remove('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+            applyUserPermissions();
+            showTab('pos');
+        }
 
-							alert('Venda registrada com sucesso!');
-							cart = [];
-							updateCartUI();
-						} catch (err) {
-							alert('Erro ao finalizar venda: ' + err.message);
-						}
-					}
+        function hideUI() {
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('mainNav').classList.add('hidden');
+            document.getElementById('mainContent').classList.add('hidden');
+        }
 
-					// Listener para botão de finalizar venda
-					document.getElementById('finalizeSaleBtn').onclick = function() {
-						if (cart.length === 0) { alert('Carrinho vazio!'); return; }
-						const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-						finalizeSale(cart, total);
-					};
+        window.showTab = (tabName) => {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.add('text-gray-500', 'hover:text-gray-700');
+            });
+            document.getElementById(tabName + 'Tab').classList.remove('hidden');
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            activeBtn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+        }
+        
+        function applyUserPermissions() {
+            const perms = currentUserData.permissions || {};
+            document.querySelector('[data-tab="products"]').style.display = perms.products ? 'block' : 'none';
+            document.querySelector('[data-tab="inventory"]').style.display = perms.inventory ? 'block' : 'none';
+            document.querySelector('[data-tab="employees"]').style.display = perms.employees ? 'block' : 'none';
+            document.querySelector('[data-tab="reports"]').style.display = perms.reports ? 'block' : 'none';
+            document.querySelector('[data-tab="settings"]').style.display = perms.settings ? 'block' : 'none';
+            document.getElementById('storeSelector').disabled = currentUserData.role !== 'Administrador';
+        }
 
-					// Inicializa UI do carrinho
-					updateCartUI();
+        // --- DATA LISTENERS ---
+        function setupDataListeners() {
+            unsubscribes.forEach(unsub => unsub());
+            unsubscribes = [];
 
-				// chama quando o formulário de login for submetido
+            const qProducts = query(collection(db, "products"), where("storeId", "==", currentStoreId));
+            const qSales = query(collection(db, "sales"), where("storeId", "==", currentStoreId), orderBy("date", "desc"), limit(50));
+            const qEmployees = collection(db, "employees");
+            const qStores = collection(db, "stores");
+            const docSettings = doc(db, "settings", "system");
 
+            unsubscribes.push(onSnapshot(qProducts, snap => {
+                localProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderProducts();
+                renderLowStockAlerts();
+            }));
+            
+            unsubscribes.push(onSnapshot(qStores, snap => {
+                localStores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderStores();
+            }));
 
-			// logout
-			window.logout = async function() {
-				await signOut(auth);
-			}
+            unsubscribes.push(onSnapshot(docSettings, doc => doc.exists() && applySystemSettings(doc.data())));
+            unsubscribes.push(onSnapshot(qSales, snap => renderSalesHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })))));
+            unsubscribes.push(onSnapshot(qEmployees, snap => renderEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() })))));
+        }
 
-			// observar estado de autenticação (mostra/oculta tela de login)
-			onAuthStateChanged(auth, user => {
-				const loginScreen = document.getElementById('loginScreen');
-				const currentUserEl = document.getElementById('currentUser');
-				if (user) {
-					if (loginScreen) loginScreen.style.display = 'none';
-					if (currentUserEl) currentUserEl.textContent = user.email;
-				} else {
-					if (loginScreen) loginScreen.style.display = 'flex';
-					if (currentUserEl) currentUserEl.textContent = '—';
-				}
-			});
-		</script>
-</body>
-</html>
+        // --- RENDER FUNCTIONS ---
+        window.renderProducts = () => {
+            const grid = document.getElementById('productsGrid');
+            const table = document.getElementById('productsTable');
+            grid.innerHTML = '';
+            table.innerHTML = '';
+            
+            const searchTerm = document.getElementById('productSearch').value.toLowerCase();
+            const filtered = localProducts.filter(p => p.name.toLowerCase().includes(searchTerm));
+
+            if(filtered.length === 0) {
+                grid.innerHTML = `<p class="col-span-full text-center text-gray-500">Nenhum produto encontrado.</p>`;
+                return;
+            }
+
+            filtered.forEach(p => {
+                // PDV Grid
+                const card = document.createElement('div');
+                card.className = 'product-card bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-blue-500 shadow-sm';
+                card.onclick = () => addToCart(p);
+                card.innerHTML = `<div class="text-center"><h3 class="font-semibold text-sm text-gray-800 truncate">${p.name}</h3><p class="text-md font-bold text-blue-600">R$ ${p.price.toFixed(2)}</p><p class="text-xs text-gray-500">Est: ${p.stock}</p></div>`;
+                grid.appendChild(card);
+
+                // Products Table
+                const row = table.insertRow();
+                row.innerHTML = `<td class="p-2">${p.name}</td><td class="p-2">R$ ${p.price.toFixed(2)}</td><td class="p-2">${p.stock}</td>
+                    <td class="p-2"><button onclick="editProduct('${p.id}')" class="bg-yellow-500 text-white px-2 py-1 rounded text-xs">✏️</button><button onclick="deleteProduct('${p.id}')" class="bg-red-500 text-white px-2 py-1 rounded text-xs ml-1">🗑️</button></td>`;
+            });
+        };
+        
+        function renderStores() {
+            const selector = document.getElementById('storeSelector');
+            const list = document.getElementById('storesList');
+            selector.innerHTML = '';
+            list.innerHTML = '';
+
+            localStores.forEach(store => {
+                const option = document.createElement('option');
+                option.value = store.id;
+                option.textContent = store.name;
+                if (store.id === currentStoreId) option.selected = true;
+                selector.appendChild(option);
+
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 p-3 rounded-lg border flex justify-between items-center';
+                div.innerHTML = `<h4 class="font-semibold text-gray-800">${store.name}</h4>
+                    <div><button onclick="editStore('${store.id}')" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm">Editar</button><button onclick="deleteStore('${store.id}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm ml-2">Deletar</button></div>`;
+                list.appendChild(div);
+            });
+        }
+        
+        function renderLowStockAlerts() {
+            const container = document.getElementById('lowStockAlerts');
+            container.innerHTML = '';
+            const lowStockProducts = localProducts.filter(p => p.stock <= p.minStock);
+
+            if(lowStockProducts.length === 0) {
+                container.innerHTML = `<p class="text-center text-green-600">✅ Nenhum item com estoque baixo.</p>`;
+                return;
+            }
+
+            lowStockProducts.forEach(p => {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'flex justify-between items-center p-3 bg-red-50 border border-red-200 rounded low-stock-alert';
+                alertDiv.innerHTML = `<div class="font-medium text-red-800">${p.name}</div><div class="text-red-600 font-bold">⚠️ Estoque: ${p.stock}</div>`;
+                container.appendChild(alertDiv);
+            });
+        }
+
+        function renderSalesHistory(sales) {
+            const table = document.getElementById('salesHistory');
+            table.innerHTML = '';
+            if(sales.length === 0) {
+                table.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">Nenhuma venda registrada nesta loja.</td></tr>`;
+                return;
+            }
+            sales.forEach(sale => {
+                const row = table.insertRow();
+                const items = sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+                row.innerHTML = `<td class="p-2">${sale.date.toDate().toLocaleString('pt-BR')}</td><td class="p-2 text-sm">${items}</td><td class="p-2 font-bold text-green-600">R$ ${sale.total.
